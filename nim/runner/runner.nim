@@ -56,7 +56,7 @@ proc runnerSpawnProcess(target: string, parent: int): PROCESS_INFORMATION =
         ret = InitializeProcThreadAttributeList(si.lpAttributeList, 1, 0, &attributeSize);
         if ret == 0:
             panic("InitializeProcThreadAttributeList")
-        UpdateProcThreadAttribute(si.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, &hParent, sizeof(HANDLE), NULL, NULL);
+        ret = UpdateProcThreadAttribute(si.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, &hParent, sizeof(HANDLE), NULL, NULL);
         if ret == 0:
             panic("UpdateProcThreadAttribute")
         si.StartupInfo.cb = cast[DWORD](sizeof(STARTUPINFOEXW))
