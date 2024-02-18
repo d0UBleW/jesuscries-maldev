@@ -116,7 +116,7 @@ proc NtWaitForSingleObject(Handle: HANDLE, Alertable: BOOLEAN, Timeout: PLARGE_I
 
 proc stalker(url: string, target = "", parent = 0, kill = false) =
     echo("""
-         j                       k
+     j                       k
     .K                       Z.
     jM.                     .Mk
     WMk                     jMW

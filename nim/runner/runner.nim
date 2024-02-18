@@ -89,7 +89,7 @@ proc fetch(url: string): Future[string] {.async.} =
 
 proc runner(url: string, target = "", parent = 0, kill = false) =
     echo("""
-                     /\
+                 /\
                 ( ;`~v/~~~ ;._
              ,/'""/^) ' < o\  '"".~'\\\--,
            ,/"",/W  u '`. ~  >,._..,   )'
