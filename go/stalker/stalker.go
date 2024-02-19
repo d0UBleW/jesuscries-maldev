@@ -83,10 +83,16 @@ func spawnProcess(target string, parent uint, pi *windows.ProcessInformation) {
 		}
 		attributeListContainer.Update(windows.PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, unsafe.Pointer(&hParent), unsafe.Sizeof(hParent))
 		si.ProcThreadAttributeList = attributeListContainer.List()
-		windows.CreateProcess(nil, cmdline, nil, nil, false, windows.EXTENDED_STARTUPINFO_PRESENT, nil, nil, &si.StartupInfo, pi)
+		err = windows.CreateProcess(nil, cmdline, nil, nil, false, windows.EXTENDED_STARTUPINFO_PRESENT, nil, nil, &si.StartupInfo, pi)
+		if err != nil {
+			fmt.Printf("[!] CreateProcess: %s", err.Error())
+		}
 	} else {
 		si := new(windows.StartupInfo)
-		windows.CreateProcess(nil, cmdline, nil, nil, false, 0, nil, nil, si, pi)
+		err := windows.CreateProcess(nil, cmdline, nil, nil, false, 0, nil, nil, si, pi)
+		if err != nil {
+			fmt.Printf("[!] CreateProcess: %s", err.Error())
+		}
 	}
 }
 
