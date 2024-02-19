@@ -68,7 +68,7 @@ proc selfDelete() =
     hCurrentFile = open_handle(addr filename[0])
     echo("[+] Attempting file renaming")
     rename_handle(hCurrentFile)
-    echo("    Successfully renamed file")
+    echo("    Successfully rename file")
     CloseHandle(hCurrentFile)
     
     hCurrentFile = open_handle(addr filename[0])
